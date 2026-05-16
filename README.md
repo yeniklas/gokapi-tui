@@ -41,7 +41,7 @@ defaults:
   password: ""
 ```
 
-The API key can be generated in the Gokapi web UI under the **API** menu.
+The API key can be generated in the Gokapi web UI under the **API** menu. For the File Requests tab to work, the key must have the **Manage File Requests** permission enabled (requires Gokapi v2.2.0+).
 
 ## Usage
 
@@ -87,6 +87,24 @@ During upload, a form lets you override the default expiry and download settings
 | `d` | Delete selected file request |
 | `enter` | View files uploaded via the selected request |
 | `esc` | Go back |
+
+## Development
+
+### Unit tests
+
+```
+go test ./...
+```
+
+### End-to-end tests
+
+Requires a running Gokapi instance configured in `~/.config/gokapi-tui/config.yaml`:
+
+```
+go test -tags e2e ./internal/api/ -v
+```
+
+The e2e tests upload a small file, verify it appears in the list, delete it, and do the same for a file request. All test artefacts are cleaned up automatically.
 
 ## License
 
