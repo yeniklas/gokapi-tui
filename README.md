@@ -4,12 +4,11 @@ A terminal UI client for [Gokapi](https://github.com/Forceu/Gokapi), the self-ho
 
 ## Features
 
-- Browse all uploaded files in a scrollable list
+- Browse all uploaded files in a scrollable list with name, size, expiry, downloads remaining, upload date, and password indicator
 - Upload files via an interactive file picker
 - Configure expiry days, download limit, and password per upload
 - Copy a file's share link to the clipboard
 - Delete files with a confirmation prompt
-- Side panel with full file details
 
 ## Installation
 
@@ -61,7 +60,6 @@ gokapi-tui [flags]
 | `u` | Upload a file |
 | `y` | Copy share link to clipboard |
 | `d` | Delete selected file |
-| `tab` | Toggle detail panel |
 | `r` | Refresh file list |
 | `q` / `ctrl+c` | Quit |
 
