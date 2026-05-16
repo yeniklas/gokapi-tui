@@ -16,6 +16,7 @@ type GokapiFile struct {
 	UnlimitedDownloads  bool   `json:"UnlimitedDownloads"`
 	UnlimitedTime       bool   `json:"UnlimitedTime"`
 	IsPasswordProtected bool   `json:"IsPasswordProtected"`
+	FileRequestId       string `json:"FileRequestId"`
 }
 
 // FileRequest JSON field names are lowercase (Gokapi API convention for this endpoint)

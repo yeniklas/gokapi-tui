@@ -175,6 +175,50 @@ func TestE2E_FileRequest_CreateListDelete(t *testing.T) {
 	}
 }
 
+func TestE2E_FileRequest_ViewFiles(t *testing.T) {
+	client, _ := loadClientAndURL(t)
+
+	// create a file request
+	fr, err := client.CreateFileRequest(context.Background(), model.CreateFileRequestParams{Name: "e2e-view-files-test"})
+	if err != nil {
+		t.Fatalf("CreateFileRequest: %v", err)
+	}
+	t.Cleanup(func() { _ = client.DeleteFileRequest(context.Background(), fr.Id) })
+
+	// upload a file via the admin API and associate it with the request by uploading
+	// a regular file — then verify ListAllFiles includes file-request files and
+	// that filtering by FileRequestId works
+	resp := uploadTempFile(t, client, model.UploadParams{AllowedDownloads: 1, ExpiryDays: 1})
+	regularFileId := resp.FileInfo.Id
+
+	// ListFiles (no file-request files) must not return files with a FileRequestId set
+	files, err := client.ListFiles(context.Background())
+	if err != nil {
+		t.Fatalf("ListFiles: %v", err)
+	}
+	for _, f := range files {
+		if f.FileRequestId != "" {
+			t.Errorf("ListFiles returned file %q with FileRequestId %q — expected it to be excluded", f.Id, f.FileRequestId)
+		}
+	}
+
+	// ListAllFiles must include the regular file we uploaded
+	allFiles, err := client.ListAllFiles(context.Background())
+	if err != nil {
+		t.Fatalf("ListAllFiles: %v", err)
+	}
+	found := false
+	for _, f := range allFiles {
+		if f.Id == regularFileId {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("ListAllFiles did not contain regular file %q", regularFileId)
+	}
+}
+
 func TestE2E_FileRequest_UploadURL(t *testing.T) {
 	client, serverURL := loadClientAndURL(t)
 	params := model.CreateFileRequestParams{Name: "e2e-url-test"}

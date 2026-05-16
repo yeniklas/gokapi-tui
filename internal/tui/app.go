@@ -39,6 +39,7 @@ type uploadDoneMsg struct{ file model.GokapiFile }
 type frLoadedMsg struct{ frs []model.FileRequest }
 type frCreatedMsg struct{ fr model.FileRequest }
 type frDeletedMsg struct{ frs []model.FileRequest }
+type frFilesLoadedMsg struct{ files []model.GokapiFile }
 type errMsg struct{ err error }
 type statusClearMsg struct{}
 
@@ -60,6 +61,7 @@ type App struct {
 	frCursor     int
 	frInputs     []textinput.Model
 	frActiveField int
+	frFiles      []model.GokapiFile
 
 	// upload flow
 	spinner      spinner.Model
@@ -168,6 +170,25 @@ func deleteFRCmd(client *api.Client, id string) tea.Cmd {
 	}
 }
 
+func loadFRFilesCmd(client *api.Client, frId string) tea.Cmd {
+	return func() tea.Msg {
+		files, err := client.ListAllFiles(context.Background())
+		if err != nil {
+			return errMsg{err}
+		}
+		var frFiles []model.GokapiFile
+		for _, f := range files {
+			if f.FileRequestId == frId {
+				frFiles = append(frFiles, f)
+			}
+		}
+		if frFiles == nil {
+			frFiles = []model.GokapiFile{}
+		}
+		return frFilesLoadedMsg{frFiles}
+	}
+}
+
 func clearStatusAfter(d time.Duration) tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg {
 		return statusClearMsg{}
@@ -219,6 +240,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.frCursor = len(a.fileRequests) - 1
 		}
 		a.state = stateList
+
+	case frFilesLoadedMsg:
+		a.frFiles = msg.files
 
 	case errMsg:
 		a.state = stateList
@@ -467,7 +491,9 @@ func (a *App) handleFRListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, clearStatusAfter(3 * time.Second)
 	case pressed(msg, keys.Confirm):
 		if len(a.fileRequests) > 0 {
+			a.frFiles = nil
 			a.state = stateFRFiles
+			return a, loadFRFilesCmd(a.client, a.fileRequests[a.frCursor].Id)
 		}
 	}
 	return a, nil
@@ -615,22 +641,14 @@ func (a *App) viewFRFiles() string {
 	}
 	fr := a.fileRequests[a.frCursor]
 
-	// filter global files list by this file request's IDs
-	idSet := make(map[string]bool, len(fr.FileIdList))
-	for _, id := range fr.FileIdList {
-		idSet[id] = true
-	}
-	var frFiles []model.GokapiFile
-	for _, f := range a.files {
-		if idSet[f.Id] {
-			frFiles = append(frFiles, f)
-		}
-	}
-
 	var b strings.Builder
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 	b.WriteString(titleStyle.Render(fmt.Sprintf("Files uploaded via: %s", fr.Name)) + "\n\n")
-	b.WriteString(renderList(frFiles, -1, a.width))
+	if a.frFiles == nil {
+		b.WriteString(dimStyle.Render("  Loading..."))
+	} else {
+		b.WriteString(renderList(a.frFiles, -1, a.width))
+	}
 	b.WriteString("\n" + dimStyle.Render("esc: back"))
 	return b.String()
 }

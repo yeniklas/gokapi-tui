@@ -68,6 +68,34 @@ func (c *Client) ListFiles(ctx context.Context) ([]model.GokapiFile, error) {
 	return files, nil
 }
 
+// ListAllFiles returns all files including those uploaded via file requests.
+func (c *Client) ListAllFiles(ctx context.Context) ([]model.GokapiFile, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/files/list", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("showFileRequests", "true")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		msg, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))
+	}
+	var files []model.GokapiFile
+	if err := json.NewDecoder(resp.Body).Decode(&files); err != nil {
+		return nil, fmt.Errorf("decoding file list: %w", err)
+	}
+	if files == nil {
+		return []model.GokapiFile{}, nil
+	}
+	return files, nil
+}
+
 func (c *Client) UploadFile(ctx context.Context, path string, params model.UploadParams) (model.UploadResponse, error) {
 	f, err := os.Open(path)
 	if err != nil {
