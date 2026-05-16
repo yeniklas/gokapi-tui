@@ -9,10 +9,11 @@ import (
 const (
 	tabUploads      = 0
 	tabFileRequests = 1
-	tabCount        = 2
+	tabStatus       = 2
+	tabCount        = 3
 )
 
-var tabNames = []string{"Uploads", "File Requests"}
+var tabNames = []string{"Uploads", "File Requests", "Status"}
 
 var (
 	activeTabStyle   = lipgloss.NewStyle().Bold(true)

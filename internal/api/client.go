@@ -227,6 +227,32 @@ func (c *Client) DeleteFileRequest(ctx context.Context, id string) error {
 	return nil
 }
 
+func (c *Client) GetSystemStatus(ctx context.Context) (model.SystemStatus, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/api/logs/systemStatus", nil, "")
+	if err != nil {
+		return model.SystemStatus{}, err
+	}
+	defer resp.Body.Close()
+	var status model.SystemStatus
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return model.SystemStatus{}, fmt.Errorf("decoding system status: %w", err)
+	}
+	return status, nil
+}
+
+func (c *Client) GetLogs(ctx context.Context) (model.LogResponse, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/api/logs/get", nil, "")
+	if err != nil {
+		return model.LogResponse{}, err
+	}
+	defer resp.Body.Close()
+	var logResp model.LogResponse
+	if err := json.NewDecoder(resp.Body).Decode(&logResp); err != nil {
+		return model.LogResponse{}, fmt.Errorf("decoding logs: %w", err)
+	}
+	return logResp, nil
+}
+
 func (c *Client) DeleteFile(ctx context.Context, id string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/api/files/delete", nil)
 	if err != nil {

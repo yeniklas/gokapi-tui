@@ -44,6 +44,10 @@ type frCreatedMsg struct{ fr model.FileRequest }
 type frDeletedMsg struct{ frs []model.FileRequest }
 type frFilesLoadedMsg struct{ files []model.GokapiFile }
 type uploadProgressMsg struct{ pct float64 }
+type statusLoadedMsg struct {
+	status   model.SystemStatus
+	logLines []string
+}
 type errMsg struct{ err error }
 type statusClearMsg struct{}
 
@@ -66,6 +70,11 @@ type App struct {
 	frInputs     []textinput.Model
 	frActiveField int
 	frFiles      []model.GokapiFile
+
+	// status tab
+	sysStatus model.SystemStatus
+	logLines  []string
+	logScroll int
 
 	// upload flow
 	spinner      spinner.Model
@@ -106,7 +115,7 @@ func New(cfg *config.Config, client *api.Client) *App {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.loadFilesCmd(), a.loadFRCmd(), a.spinner.Tick)
+	return tea.Batch(a.loadFilesCmd(), a.loadFRCmd(), loadStatusCmd(a.client), a.spinner.Tick)
 }
 
 // ── commands ──────────────────────────────────────────────────────────────────
@@ -196,6 +205,24 @@ func loadFRFilesCmd(client *api.Client, frId string) tea.Cmd {
 	}
 }
 
+func loadStatusCmd(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		status, err := client.GetSystemStatus(context.Background())
+		if err != nil {
+			return errMsg{err}
+		}
+		logResp, err := client.GetLogs(context.Background())
+		if err != nil {
+			return errMsg{err}
+		}
+		lines := strings.Split(strings.TrimSpace(logResp.LogEntries), "\n")
+		if len(lines) == 1 && lines[0] == "" {
+			lines = nil
+		}
+		return statusLoadedMsg{status, lines}
+	}
+}
+
 func uploadWithProgressCmd(client *api.Client, path string, params model.UploadParams, ch chan float64) tea.Cmd {
 	return func() tea.Msg {
 		resp, err := client.UploadFileWithProgress(context.Background(), path, params, ch)
@@ -273,6 +300,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case frFilesLoadedMsg:
 		a.frFiles = msg.files
 
+	case statusLoadedMsg:
+		a.sysStatus = msg.status
+		a.logLines = msg.logLines
+		a.logScroll = 0
+
 	case errMsg:
 		a.state = stateList
 		a.setStatus("Error: "+msg.err.Error(), true)
@@ -341,10 +373,14 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case stateFRFiles:
 		return a.handleFRFilesKey(msg)
 	default:
-		if a.activeTab == tabFileRequests {
+		switch a.activeTab {
+		case tabFileRequests:
 			return a.handleFRListKey(msg)
+		case tabStatus:
+			return a.handleStatusKey(msg)
+		default:
+			return a.handleListKey(msg)
 		}
-		return a.handleListKey(msg)
 	}
 }
 
@@ -359,6 +395,9 @@ func (a *App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case pressed(msg, keys.Tab2):
 		a.activeTab = tabFileRequests
 		return a, a.loadFRCmd()
+	case pressed(msg, keys.Tab3):
+		a.activeTab = tabStatus
+		return a, loadStatusCmd(a.client)
 	case pressed(msg, keys.Up):
 		if a.cursor > 0 {
 			a.cursor--
@@ -497,6 +536,9 @@ func (a *App) handleFRListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, a.loadFilesCmd()
 	case pressed(msg, keys.Tab2):
 		// already here
+	case pressed(msg, keys.Tab3):
+		a.activeTab = tabStatus
+		return a, loadStatusCmd(a.client)
 	case pressed(msg, keys.Up):
 		if a.frCursor > 0 {
 			a.frCursor--
@@ -600,6 +642,40 @@ func (a *App) handleFRFilesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+func (a *App) handleStatusKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	maxScroll := len(a.logLines) - 1
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	switch {
+	case pressed(msg, keys.Quit):
+		return a, tea.Quit
+	case pressed(msg, keys.Tab1):
+		a.activeTab = tabUploads
+		return a, a.loadFilesCmd()
+	case pressed(msg, keys.Tab2):
+		a.activeTab = tabFileRequests
+		return a, a.loadFRCmd()
+	case pressed(msg, keys.Tab3):
+		// already here
+	case pressed(msg, keys.Refresh):
+		return a, loadStatusCmd(a.client)
+	case pressed(msg, keys.Up):
+		if a.logScroll > 0 {
+			a.logScroll--
+		}
+	case pressed(msg, keys.Down):
+		if a.logScroll < maxScroll {
+			a.logScroll++
+		}
+	case pressed(msg, keys.Top):
+		a.logScroll = 0
+	case pressed(msg, keys.Bottom):
+		a.logScroll = maxScroll
+	}
+	return a, nil
+}
+
 // ── View ──────────────────────────────────────────────────────────────────────
 
 func (a *App) View() string {
@@ -626,9 +702,12 @@ func (a *App) View() string {
 func (a *App) viewList() string {
 	var b strings.Builder
 	b.WriteString(renderTabBar(a.activeTab, a.width) + "\n\n")
-	if a.activeTab == tabFileRequests {
+	switch a.activeTab {
+	case tabFileRequests:
 		b.WriteString(renderFRList(a.fileRequests, a.frCursor, a.width))
-	} else {
+	case tabStatus:
+		b.WriteString(renderStatus(a.sysStatus, a.logLines, a.logScroll, a.width, a.height))
+	default:
 		b.WriteString(renderList(a.files, a.cursor, a.width))
 	}
 	b.WriteString("\n")
@@ -704,10 +783,13 @@ func (a *App) viewFRFiles() string {
 
 func (a *App) statusBar() string {
 	var help string
-	if a.activeTab == tabFileRequests {
-		help = dimStyle.Render("n:new  y:copy link  d:delete  enter:view files  r:refresh  1/2:tabs  q:quit")
-	} else {
-		help = dimStyle.Render("u:upload  y:copy link  d:delete  r:refresh  1/2:tabs  q:quit")
+	switch a.activeTab {
+	case tabFileRequests:
+		help = dimStyle.Render("n:new  y:copy link  d:delete  enter:view files  r:refresh  1/2/3:tabs  q:quit")
+	case tabStatus:
+		help = dimStyle.Render("j/k:scroll  g/G:top/bottom  r:refresh  1/2/3:tabs  q:quit")
+	default:
+		help = dimStyle.Render("u:upload  y:copy link  d:delete  r:refresh  1/2/3:tabs  q:quit")
 	}
 	if a.statusMsg != "" {
 		style := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
@@ -716,10 +798,14 @@ func (a *App) statusBar() string {
 		}
 		return style.Render(a.statusMsg) + "  " + help
 	}
-	if a.activeTab == tabFileRequests {
-		return dimStyle.Render(fmt.Sprintf("%d file request(s)", len(a.fileRequests)))+"  "+help
+	switch a.activeTab {
+	case tabFileRequests:
+		return dimStyle.Render(fmt.Sprintf("%d file request(s)", len(a.fileRequests))) + "  " + help
+	case tabStatus:
+		return dimStyle.Render(fmt.Sprintf("%d log line(s)", len(a.logLines))) + "  " + help
+	default:
+		return dimStyle.Render(fmt.Sprintf("%d file(s)", len(a.files))) + "  " + help
 	}
-	return dimStyle.Render(fmt.Sprintf("%d file(s)", len(a.files))) + "  " + help
 }
 
 func (a *App) setStatus(msg string, isErr bool) {

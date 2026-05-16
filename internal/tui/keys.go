@@ -17,6 +17,7 @@ type keyMap struct {
 	Quit      key.Binding
 	Tab1      key.Binding
 	Tab2      key.Binding
+	Tab3      key.Binding
 	FRCreate  key.Binding
 }
 
@@ -76,6 +77,10 @@ var keys = keyMap{
 	Tab2: key.NewBinding(
 		key.WithKeys("2"),
 		key.WithHelp("2", "file requests"),
+	),
+	Tab3: key.NewBinding(
+		key.WithKeys("3"),
+		key.WithHelp("3", "status"),
 	),
 	FRCreate: key.NewBinding(
 		key.WithKeys("n"),

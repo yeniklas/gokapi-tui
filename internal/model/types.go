@@ -49,6 +49,25 @@ type UploadParams struct {
 	Password         string
 }
 
+type SystemStatus struct {
+	Uptime                int64 `json:"uptime"`
+	CpuLoad               int32 `json:"cpuLoad"`
+	MemoryUsagePercentage int32 `json:"memoryUsagePercentage"`
+	DiskUsagePercentage   int32 `json:"diskUsagePercentage"`
+	ActiveFiles           int32 `json:"activeFiles"`
+	MemoryUsed            int64 `json:"memoryUsed"`
+	MemoryTotal           int64 `json:"memoryTotal"`
+	DiskUsed              int64 `json:"diskUsed"`
+	DiskTotal             int64 `json:"diskTotal"`
+	DataServed            int64 `json:"dataServed"`
+	TrafficRecordingSince int64 `json:"trafficRecordingSince"`
+}
+
+type LogResponse struct {
+	LogEntries string `json:"logEntries"`
+	Timestamp  int64  `json:"timestamp"`
+}
+
 type UploadResponse struct {
 	Result          string     `json:"Result"`
 	FileInfo        GokapiFile `json:"FileInfo"`
