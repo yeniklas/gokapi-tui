@@ -105,7 +105,7 @@ func (c *Client) UploadFile(ctx context.Context, path string, params model.Uploa
 }
 
 func (c *Client) ListFileRequests(ctx context.Context) ([]model.FileRequest, error) {
-	resp, err := c.do(ctx, http.MethodGet, "/api/uploadrequest/list", nil, "")
+	resp, err := c.do(ctx, http.MethodGet, "/uploadrequest/list", nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (c *Client) ListFileRequests(ctx context.Context) ([]model.FileRequest, err
 }
 
 func (c *Client) CreateFileRequest(ctx context.Context, params model.CreateFileRequestParams) (model.FileRequest, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/uploadrequest/save", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/uploadrequest/save", nil)
 	if err != nil {
 		return model.FileRequest{}, err
 	}
@@ -149,7 +149,7 @@ func (c *Client) CreateFileRequest(ctx context.Context, params model.CreateFileR
 }
 
 func (c *Client) DeleteFileRequest(ctx context.Context, id string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/api/uploadrequest/delete", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/uploadrequest/delete", nil)
 	if err != nil {
 		return err
 	}
