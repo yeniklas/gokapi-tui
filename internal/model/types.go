@@ -18,6 +18,30 @@ type GokapiFile struct {
 	IsPasswordProtected bool   `json:"IsPasswordProtected"`
 }
 
+// FileRequest JSON field names are lowercase (Gokapi API convention for this endpoint)
+type FileRequest struct {
+	Id            string   `json:"id"`
+	Name          string   `json:"name"`
+	Notes         string   `json:"notes"`
+	Expiry        int64    `json:"expiry"`
+	CreationDate  int64    `json:"creationdate"`
+	MaxFiles      int      `json:"maxfiles"`
+	MaxSize       int      `json:"maxsize"` // MB; 0 = unlimited
+	ApiKey        string   `json:"apikey"`
+	UploadedFiles int      `json:"uploadedfiles"`
+	LastUpload    int64    `json:"lastupload"`
+	TotalFileSize int64    `json:"totalfilesize"`
+	FileIdList    []string `json:"fileidlist"`
+}
+
+type CreateFileRequestParams struct {
+	Name     string
+	Notes    string
+	ExpiryAt int64 // unix timestamp; 0 = no expiry
+	MaxFiles int   // 0 = unlimited
+	MaxSize  int   // MB; 0 = unlimited
+}
+
 type UploadParams struct {
 	AllowedDownloads int
 	ExpiryDays       int

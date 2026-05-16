@@ -15,6 +15,9 @@ type keyMap struct {
 	Cancel    key.Binding
 	NextField key.Binding
 	Quit      key.Binding
+	Tab1      key.Binding
+	Tab2      key.Binding
+	FRCreate  key.Binding
 }
 
 var keys = keyMap{
@@ -65,5 +68,17 @@ var keys = keyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
 		key.WithHelp("q", "quit"),
+	),
+	Tab1: key.NewBinding(
+		key.WithKeys("1"),
+		key.WithHelp("1", "uploads"),
+	),
+	Tab2: key.NewBinding(
+		key.WithKeys("2"),
+		key.WithHelp("2", "file requests"),
+	),
+	FRCreate: key.NewBinding(
+		key.WithKeys("n"),
+		key.WithHelp("n", "new request"),
 	),
 }

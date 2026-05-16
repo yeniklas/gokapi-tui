@@ -481,6 +481,409 @@ func TestHandleUploadFormKey_EnterStartsUpload(t *testing.T) {
 	}
 }
 
+// ── tab switching ─────────────────────────────────────────────────────────────
+
+func TestTabSwitch_ToFileRequests(t *testing.T) {
+	app := testApp(sampleFiles())
+	app = updateApp(app, "2")
+	if app.activeTab != tabFileRequests {
+		t.Errorf("activeTab = %d, want tabFileRequests (%d)", app.activeTab, tabFileRequests)
+	}
+}
+
+func TestTabSwitch_BackToUploads(t *testing.T) {
+	app := testApp(sampleFiles())
+	app.activeTab = tabFileRequests
+	app = updateApp(app, "1")
+	if app.activeTab != tabUploads {
+		t.Errorf("activeTab = %d, want tabUploads (%d)", app.activeTab, tabUploads)
+	}
+}
+
+// ── renderTabBar ──────────────────────────────────────────────────────────────
+
+func TestRenderTabBar_ActiveBracketed(t *testing.T) {
+	out := renderTabBar(tabUploads, 120)
+	if !strings.Contains(out, "[Uploads]") {
+		t.Errorf("active tab should be bracketed, got: %q", out)
+	}
+}
+
+func TestRenderTabBar_InactiveNoBrackets(t *testing.T) {
+	out := renderTabBar(tabUploads, 120)
+	if strings.Contains(out, "[File Requests]") {
+		t.Errorf("inactive tab should not be bracketed, got: %q", out)
+	}
+	if !strings.Contains(out, "File Requests") {
+		t.Errorf("inactive tab name should still appear, got: %q", out)
+	}
+}
+
+// ── renderFRList ──────────────────────────────────────────────────────────────
+
+func sampleFRs() []model.FileRequest {
+	return []model.FileRequest{
+		{Id: "r1", Name: "Photos", MaxFiles: 10, UploadedFiles: 3},
+		{Id: "r2", Name: "Documents", MaxFiles: 0, UploadedFiles: 0},
+	}
+}
+
+func TestRenderFRList_ContainsNames(t *testing.T) {
+	frs := sampleFRs()
+	out := renderFRList(frs, 0, 120)
+	for _, fr := range frs {
+		if !strings.Contains(out, fr.Name) {
+			t.Errorf("output missing FR name %q", fr.Name)
+		}
+	}
+}
+
+func TestRenderFRList_CursorRow(t *testing.T) {
+	frs := sampleFRs()
+	out := renderFRList(frs, 1, 120)
+	lines := strings.Split(out, "\n")
+	// line 0 = header, line 1 = fr[0], line 2 = fr[1] (cursor)
+	if !strings.Contains(lines[2], ">") {
+		t.Errorf("cursor row should contain '>', got: %q", lines[2])
+	}
+}
+
+func TestRenderFRList_EmptyState(t *testing.T) {
+	out := renderFRList(nil, 0, 120)
+	if !strings.Contains(out, "No file requests found") {
+		t.Errorf("expected empty-state message, got: %q", out)
+	}
+}
+
+func TestRenderFRList_UnlimitedMaxFiles(t *testing.T) {
+	frs := []model.FileRequest{{Id: "x", Name: "r", MaxFiles: 0}}
+	out := renderFRList(frs, 0, 120)
+	if !strings.Contains(out, "unlimited") {
+		t.Errorf("zero MaxFiles should show 'unlimited', got: %q", out)
+	}
+}
+
+func TestRenderFRList_NoExpiry(t *testing.T) {
+	frs := []model.FileRequest{{Id: "x", Name: "r", Expiry: 0}}
+	out := renderFRList(frs, 0, 120)
+	if !strings.Contains(out, "never") {
+		t.Errorf("zero Expiry should show 'never', got: %q", out)
+	}
+}
+
+func TestRenderFRList_ExpiryDate(t *testing.T) {
+	frs := []model.FileRequest{{Id: "x", Name: "r", Expiry: 1700000000}}
+	out := renderFRList(frs, 0, 120)
+	if !strings.Contains(out, "2023-11-14") {
+		t.Errorf("expected formatted expiry date, got: %q", out)
+	}
+}
+
+// ── formatBytes ───────────────────────────────────────────────────────────────
+
+func TestFormatBytes(t *testing.T) {
+	tests := []struct {
+		input int64
+		want  string
+	}{
+		{0, "0 B"},
+		{512, "512 B"},
+		{1024, "1.0 KB"},
+		{1536, "1.5 KB"},
+		{1 << 20, "1.0 MB"},
+		{1 << 30, "1.0 GB"},
+	}
+	for _, tc := range tests {
+		if got := formatBytes(tc.input); got != tc.want {
+			t.Errorf("formatBytes(%d) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+// ── parseInt ──────────────────────────────────────────────────────────────────
+
+func TestParseInt(t *testing.T) {
+	if parseInt("42") != 42 {
+		t.Error("parseInt(42) should return 42")
+	}
+	if parseInt("") != 0 {
+		t.Error("parseInt(\"\") should return 0")
+	}
+	if parseInt("abc") != 0 {
+		t.Error("parseInt(abc) should return 0")
+	}
+	if parseInt("  7  ") != 7 {
+		t.Error("parseInt with whitespace should return 7")
+	}
+}
+
+// ── FR message handling ───────────────────────────────────────────────────────
+
+func TestUpdate_FRLoadedMsg(t *testing.T) {
+	app := testApp(nil)
+	frs := sampleFRs()
+	m, _ := app.Update(frLoadedMsg{frs: frs})
+	got := m.(*App)
+	if len(got.fileRequests) != len(frs) {
+		t.Errorf("got %d file requests, want %d", len(got.fileRequests), len(frs))
+	}
+}
+
+func TestUpdate_FRLoadedMsg_ClampsCursor(t *testing.T) {
+	app := testApp(nil)
+	app.fileRequests = sampleFRs()
+	app.frCursor = 1
+	m, _ := app.Update(frLoadedMsg{frs: sampleFRs()[:1]})
+	got := m.(*App)
+	if got.frCursor != 0 {
+		t.Errorf("frCursor should clamp to 0, got %d", got.frCursor)
+	}
+}
+
+func TestUpdate_FRCreatedMsg(t *testing.T) {
+	app := testApp(nil)
+	app.activeTab = tabFileRequests
+	app.state = stateUploading
+	fr := model.FileRequest{Id: "new", Name: "New Request"}
+	m, _ := app.Update(frCreatedMsg{fr: fr})
+	got := m.(*App)
+	if got.state != stateList {
+		t.Errorf("state = %d, want stateList after frCreatedMsg", got.state)
+	}
+	if got.statusMsg == "" {
+		t.Error("expected status message after FR creation")
+	}
+}
+
+func TestUpdate_FRDeletedMsg(t *testing.T) {
+	app := testApp(nil)
+	app.fileRequests = sampleFRs()
+	app.frCursor = 1
+	remaining := sampleFRs()[:1]
+	m, _ := app.Update(frDeletedMsg{frs: remaining})
+	got := m.(*App)
+	if len(got.fileRequests) != 1 {
+		t.Errorf("got %d file requests, want 1", len(got.fileRequests))
+	}
+	if got.frCursor != 0 {
+		t.Errorf("frCursor should clamp to 0, got %d", got.frCursor)
+	}
+}
+
+// ── FR list navigation ────────────────────────────────────────────────────────
+
+func frApp() *App {
+	app := testApp(sampleFiles())
+	app.activeTab = tabFileRequests
+	app.fileRequests = sampleFRs()
+	return app
+}
+
+func TestHandleFRListKey_Down(t *testing.T) {
+	app := frApp()
+	app.frCursor = 0
+	app = updateApp(app, "j")
+	if app.frCursor != 1 {
+		t.Errorf("frCursor = %d, want 1 after j", app.frCursor)
+	}
+}
+
+func TestHandleFRListKey_DownClampAtEnd(t *testing.T) {
+	app := frApp()
+	app.frCursor = 1
+	app = updateApp(app, "j")
+	if app.frCursor != 1 {
+		t.Errorf("frCursor should stay at 1 at boundary, got %d", app.frCursor)
+	}
+}
+
+func TestHandleFRListKey_Up(t *testing.T) {
+	app := frApp()
+	app.frCursor = 1
+	app = updateApp(app, "k")
+	if app.frCursor != 0 {
+		t.Errorf("frCursor = %d, want 0 after k", app.frCursor)
+	}
+}
+
+func TestHandleFRListKey_NewOpensCreateForm(t *testing.T) {
+	app := frApp()
+	app = updateApp(app, "n")
+	if app.state != stateFRCreate {
+		t.Errorf("state = %d, want stateFRCreate after n", app.state)
+	}
+}
+
+func TestHandleFRListKey_DeleteOpensConfirm(t *testing.T) {
+	app := frApp()
+	app = updateApp(app, "d")
+	if app.state != stateFRConfirmDel {
+		t.Errorf("state = %d, want stateFRConfirmDel after d", app.state)
+	}
+}
+
+func TestHandleFRListKey_DeleteOnEmptyDoesNothing(t *testing.T) {
+	app := frApp()
+	app.fileRequests = nil
+	app = updateApp(app, "d")
+	if app.state != stateList {
+		t.Errorf("delete on empty FR list should stay in stateList, got %d", app.state)
+	}
+}
+
+func TestHandleFRListKey_EnterViewsFiles(t *testing.T) {
+	app := frApp()
+	app = updateApp(app, "enter")
+	if app.state != stateFRFiles {
+		t.Errorf("state = %d, want stateFRFiles after enter", app.state)
+	}
+}
+
+func TestHandleFRListKey_EnterOnEmptyDoesNothing(t *testing.T) {
+	app := frApp()
+	app.fileRequests = nil
+	app = updateApp(app, "enter")
+	if app.state != stateList {
+		t.Errorf("enter on empty FR list should stay in stateList, got %d", app.state)
+	}
+}
+
+// ── FR confirm delete ─────────────────────────────────────────────────────────
+
+func TestHandleFRConfirmDelKey_ConfirmRemovesFR(t *testing.T) {
+	app := frApp()
+	app.frCursor = 0
+	app.state = stateFRConfirmDel
+	app = updateApp(app, "y")
+	if app.state != stateList {
+		t.Errorf("state = %d, want stateList after confirm", app.state)
+	}
+	if len(app.fileRequests) != 1 {
+		t.Errorf("fileRequests len = %d, want 1 after delete", len(app.fileRequests))
+	}
+	if app.fileRequests[0].Id != "r2" {
+		t.Errorf("wrong FR remaining: %+v", app.fileRequests)
+	}
+}
+
+func TestHandleFRConfirmDelKey_CancelKeepsFRs(t *testing.T) {
+	app := frApp()
+	app.state = stateFRConfirmDel
+	app = updateApp(app, "esc")
+	if app.state != stateList {
+		t.Errorf("state = %d, want stateList after cancel", app.state)
+	}
+	if len(app.fileRequests) != 2 {
+		t.Errorf("fileRequests should be unchanged after cancel, got %d", len(app.fileRequests))
+	}
+}
+
+// ── FR create form ────────────────────────────────────────────────────────────
+
+func TestHandleFRCreateKey_EscReturnsToList(t *testing.T) {
+	app := frApp()
+	app.state = stateFRCreate
+	app.frInputs = newFRInputs()
+	app = updateApp(app, "esc")
+	if app.state != stateList {
+		t.Errorf("state = %d, want stateList after esc", app.state)
+	}
+}
+
+func TestHandleFRCreateKey_TabCyclesField(t *testing.T) {
+	app := frApp()
+	app.state = stateFRCreate
+	app.frInputs = newFRInputs()
+	app.frActiveField = frFieldName
+
+	app = updateApp(app, "tab")
+	if app.frActiveField != frFieldNotes {
+		t.Errorf("frActiveField = %d, want frFieldNotes (%d)", app.frActiveField, frFieldNotes)
+	}
+	app = updateApp(app, "tab")
+	if app.frActiveField != frFieldExpiry {
+		t.Errorf("frActiveField = %d, want frFieldExpiry (%d)", app.frActiveField, frFieldExpiry)
+	}
+}
+
+func TestHandleFRCreateKey_EnterWithNameStartsCreation(t *testing.T) {
+	app := frApp()
+	app.state = stateFRCreate
+	app.frInputs = newFRInputs()
+	app.frInputs[frFieldName].SetValue("My Request")
+	app = updateApp(app, "enter")
+	if app.state != stateUploading {
+		t.Errorf("state = %d, want stateUploading after enter with name", app.state)
+	}
+}
+
+func TestHandleFRCreateKey_EnterWithoutNameShowsError(t *testing.T) {
+	app := frApp()
+	app.state = stateFRCreate
+	app.frInputs = newFRInputs()
+	// name is empty by default
+	app = updateApp(app, "enter")
+	if app.state == stateUploading {
+		t.Error("should not start creation without a name")
+	}
+	if !app.statusErr {
+		t.Error("should set error status when name is missing")
+	}
+}
+
+// ── parseFRParams ─────────────────────────────────────────────────────────────
+
+func TestParseFRParams_BasicFields(t *testing.T) {
+	inputs := newFRInputs()
+	inputs[frFieldName].SetValue("Test Request")
+	inputs[frFieldNotes].SetValue("some notes")
+	inputs[frFieldMaxFiles].SetValue("5")
+	inputs[frFieldMaxSize].SetValue("100")
+
+	p := parseFRParams(inputs)
+	if p.Name != "Test Request" {
+		t.Errorf("Name = %q, want %q", p.Name, "Test Request")
+	}
+	if p.Notes != "some notes" {
+		t.Errorf("Notes = %q, want %q", p.Notes, "some notes")
+	}
+	if p.MaxFiles != 5 {
+		t.Errorf("MaxFiles = %d, want 5", p.MaxFiles)
+	}
+	if p.MaxSize != 100 {
+		t.Errorf("MaxSize = %d, want 100", p.MaxSize)
+	}
+}
+
+func TestParseFRParams_ZeroExpiryMeansNever(t *testing.T) {
+	inputs := newFRInputs()
+	inputs[frFieldExpiry].SetValue("0")
+	p := parseFRParams(inputs)
+	if p.ExpiryAt != 0 {
+		t.Errorf("ExpiryAt should be 0 for zero days, got %d", p.ExpiryAt)
+	}
+}
+
+func TestParseFRParams_PositiveExpirySetsFutureTimestamp(t *testing.T) {
+	inputs := newFRInputs()
+	inputs[frFieldExpiry].SetValue("7")
+	p := parseFRParams(inputs)
+	if p.ExpiryAt <= 0 {
+		t.Error("ExpiryAt should be a future unix timestamp for positive days")
+	}
+}
+
+// ── FR files view ─────────────────────────────────────────────────────────────
+
+func TestHandleFRFilesKey_EscReturnsToList(t *testing.T) {
+	app := frApp()
+	app.state = stateFRFiles
+	app = updateApp(app, "esc")
+	if app.state != stateList {
+		t.Errorf("state = %d, want stateList after esc", app.state)
+	}
+}
+
 // testError implements the error interface for tests
 type testError struct{ msg string }
 

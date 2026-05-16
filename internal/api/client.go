@@ -104,6 +104,69 @@ func (c *Client) UploadFile(ctx context.Context, path string, params model.Uploa
 	return result, nil
 }
 
+func (c *Client) ListFileRequests(ctx context.Context) ([]model.FileRequest, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/api/uploadrequest/list", nil, "")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var frs []model.FileRequest
+	if err := json.NewDecoder(resp.Body).Decode(&frs); err != nil {
+		return nil, fmt.Errorf("decoding file request list: %w", err)
+	}
+	if frs == nil {
+		return []model.FileRequest{}, nil
+	}
+	return frs, nil
+}
+
+func (c *Client) CreateFileRequest(ctx context.Context, params model.CreateFileRequestParams) (model.FileRequest, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/uploadrequest/save", nil)
+	if err != nil {
+		return model.FileRequest{}, err
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("name", params.Name)
+	req.Header.Set("notes", params.Notes)
+	req.Header.Set("expiry", strconv.FormatInt(params.ExpiryAt, 10))
+	req.Header.Set("maxfiles", strconv.Itoa(params.MaxFiles))
+	req.Header.Set("maxsize", strconv.Itoa(params.MaxSize))
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return model.FileRequest{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		msg, _ := io.ReadAll(resp.Body)
+		return model.FileRequest{}, fmt.Errorf("API %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))
+	}
+	var fr model.FileRequest
+	if err := json.NewDecoder(resp.Body).Decode(&fr); err != nil {
+		return model.FileRequest{}, fmt.Errorf("decoding file request: %w", err)
+	}
+	return fr, nil
+}
+
+func (c *Client) DeleteFileRequest(ctx context.Context, id string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/api/uploadrequest/delete", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("id", id)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		msg, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))
+	}
+	return nil
+}
+
 func (c *Client) DeleteFile(ctx context.Context, id string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/api/files/delete", nil)
 	if err != nil {
