@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+	"path/filepath"
+
 	"github.com/charmbracelet/bubbles/filepicker"
 	bubblekey "github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,6 +43,7 @@ type frLoadedMsg struct{ frs []model.FileRequest }
 type frCreatedMsg struct{ fr model.FileRequest }
 type frDeletedMsg struct{ frs []model.FileRequest }
 type frFilesLoadedMsg struct{ files []model.GokapiFile }
+type uploadProgressMsg struct{ pct float64 }
 type errMsg struct{ err error }
 type statusClearMsg struct{}
 
@@ -65,6 +69,8 @@ type App struct {
 
 	// upload flow
 	spinner      spinner.Model
+	progressBar  progress.Model
+	progressCh   chan float64
 	fp           filepicker.Model
 	inputs       []textinput.Model
 	activeField  int
@@ -91,10 +97,11 @@ func New(cfg *config.Config, client *api.Client) *App {
 	fp.ShowHidden = false
 
 	return &App{
-		cfg:     cfg,
-		client:  client,
-		spinner: s,
-		fp:      fp,
+		cfg:         cfg,
+		client:      client,
+		spinner:     s,
+		progressBar: progress.New(progress.WithDefaultGradient()),
+		fp:          fp,
 	}
 }
 
@@ -189,6 +196,27 @@ func loadFRFilesCmd(client *api.Client, frId string) tea.Cmd {
 	}
 }
 
+func uploadWithProgressCmd(client *api.Client, path string, params model.UploadParams, ch chan float64) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.UploadFileWithProgress(context.Background(), path, params, ch)
+		close(ch)
+		if err != nil {
+			return errMsg{err}
+		}
+		return uploadDoneMsg{resp.FileInfo}
+	}
+}
+
+func listenProgressCmd(ch chan float64) tea.Cmd {
+	return func() tea.Msg {
+		pct, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return uploadProgressMsg{pct}
+	}
+}
+
 func clearStatusAfter(d time.Duration) tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg {
 		return statusClearMsg{}
@@ -204,6 +232,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 		a.fp.Height = a.height - 6
+		a.progressBar.Width = a.width - 4
 
 	case tea.KeyMsg:
 		return a.handleKey(msg)
@@ -256,6 +285,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		a.spinner, cmd = a.spinner.Update(msg)
+		return a, cmd
+
+	case uploadProgressMsg:
+		cmd := a.progressBar.SetPercent(msg.pct)
+		return a, tea.Batch(cmd, listenProgressCmd(a.progressCh))
+
+	case progress.FrameMsg:
+		m, cmd := a.progressBar.Update(msg)
+		a.progressBar = m.(progress.Model)
 		return a, cmd
 	}
 
@@ -391,7 +429,13 @@ func (a *App) handleUploadFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case pressed(msg, keys.Confirm):
 		params := a.parseUploadParams()
 		a.state = stateUploading
-		return a, tea.Batch(uploadCmd(a.client, a.selectedPath, params), a.spinner.Tick)
+		a.progressCh = make(chan float64, 1)
+		cmd := a.progressBar.SetPercent(0)
+		return a, tea.Batch(
+			cmd,
+			uploadWithProgressCmd(a.client, a.selectedPath, params, a.progressCh),
+			listenProgressCmd(a.progressCh),
+		)
 	default:
 		var cmds []tea.Cmd
 		for i := range a.inputs {
@@ -606,11 +650,16 @@ func (a *App) viewUploadForm() string {
 }
 
 func (a *App) viewUploading() string {
-	label := "Uploading " + a.selectedPath
 	if a.activeTab == tabFileRequests {
-		label = "Creating file request…"
+		return fmt.Sprintf("\n  %s Creating file request…", a.spinner.View())
 	}
-	return fmt.Sprintf("\n  %s %s", a.spinner.View(), label)
+	name := filepath.Base(a.selectedPath)
+	pct := int(a.progressBar.Percent() * 100)
+	return fmt.Sprintf("\n  Uploading %s… %d%%\n\n  %s\n\n  %s",
+		name, pct,
+		a.progressBar.View(),
+		dimStyle.Render("please wait"),
+	)
 }
 
 func (a *App) viewConfirmDel() string {

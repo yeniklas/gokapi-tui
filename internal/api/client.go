@@ -96,7 +96,34 @@ func (c *Client) ListAllFiles(ctx context.Context) ([]model.GokapiFile, error) {
 	return files, nil
 }
 
+type countingReader struct {
+	r     io.Reader
+	total int64
+	sent  int64
+	ch    chan<- float64
+}
+
+func (cr *countingReader) Read(p []byte) (int, error) {
+	n, err := cr.r.Read(p)
+	cr.sent += int64(n)
+	if cr.total > 0 {
+		select {
+		case cr.ch <- float64(cr.sent) / float64(cr.total):
+		default:
+		}
+	}
+	return n, err
+}
+
 func (c *Client) UploadFile(ctx context.Context, path string, params model.UploadParams) (model.UploadResponse, error) {
+	return c.uploadFile(ctx, path, params, nil)
+}
+
+func (c *Client) UploadFileWithProgress(ctx context.Context, path string, params model.UploadParams, progressCh chan<- float64) (model.UploadResponse, error) {
+	return c.uploadFile(ctx, path, params, progressCh)
+}
+
+func (c *Client) uploadFile(ctx context.Context, path string, params model.UploadParams, progressCh chan<- float64) (model.UploadResponse, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return model.UploadResponse{}, fmt.Errorf("opening file: %w", err)
@@ -119,7 +146,12 @@ func (c *Client) UploadFile(ctx context.Context, path string, params model.Uploa
 	}
 	mw.Close()
 
-	resp, err := c.do(ctx, http.MethodPost, "/api/files/add", &buf, mw.FormDataContentType())
+	var body io.Reader = &buf
+	if progressCh != nil {
+		body = &countingReader{r: &buf, total: int64(buf.Len()), ch: progressCh}
+	}
+
+	resp, err := c.do(ctx, http.MethodPost, "/api/files/add", body, mw.FormDataContentType())
 	if err != nil {
 		return model.UploadResponse{}, err
 	}
