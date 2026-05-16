@@ -43,8 +43,13 @@ The API key can be generated in the Gokapi web UI under the **API** menu.
 ## Usage
 
 ```
-gokapi-tui
+gokapi-tui [flags]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--version` | Print the current version and exit |
+| `--self-update` | Update to the latest release from GitHub |
 
 ### Key bindings
 
