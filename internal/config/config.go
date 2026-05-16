@@ -20,12 +20,20 @@ type Config struct {
 	Defaults  Defaults `yaml:"defaults"`
 }
 
-func Load() (*Config, error) {
+func DefaultPath() (string, error) {
 	cfgDir, err := os.UserConfigDir()
 	if err != nil {
-		return nil, fmt.Errorf("cannot find config dir: %w", err)
+		return "", fmt.Errorf("cannot find config dir: %w", err)
 	}
-	return LoadFrom(filepath.Join(cfgDir, "gokapi-tui", "config.yaml"))
+	return filepath.Join(cfgDir, "gokapi-tui", "config.yaml"), nil
+}
+
+func Load() (*Config, error) {
+	path, err := DefaultPath()
+	if err != nil {
+		return nil, err
+	}
+	return LoadFrom(path)
 }
 
 func LoadFrom(path string) (*Config, error) {
