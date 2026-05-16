@@ -160,20 +160,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	}
 
-	// delegate to sub-models when needed
+	// delegate to sub-models when needed (non-key messages)
 	switch a.state {
 	case stateFilePicker:
 		var cmd tea.Cmd
 		a.fp, cmd = a.fp.Update(msg)
-		if selected, path := a.fp.DidSelectFile(msg); selected {
-			a.selectedPath = path
-			a.inputs = newUploadInputs(a.cfg.Defaults.AllowedDownloads, a.cfg.Defaults.ExpiryDays, a.cfg.Defaults.Password)
-			a.activeField = fieldDownloads
-			a.state = stateUploadForm
-		} else if disabled, _ := a.fp.DidSelectDisabledFile(msg); disabled {
-			a.setStatus("Cannot select that file", true)
-			return a, tea.Batch(cmd, clearStatusAfter(3*time.Second))
-		}
 		return a, cmd
 	case stateUploadForm:
 		var cmds []tea.Cmd
@@ -265,6 +256,15 @@ func (a *App) handleFilePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	a.fp, cmd = a.fp.Update(msg)
+	if selected, path := a.fp.DidSelectFile(msg); selected {
+		a.selectedPath = path
+		a.inputs = newUploadInputs(a.cfg.Defaults.AllowedDownloads, a.cfg.Defaults.ExpiryDays, a.cfg.Defaults.Password)
+		a.activeField = fieldDownloads
+		a.state = stateUploadForm
+	} else if disabled, _ := a.fp.DidSelectDisabledFile(msg); disabled {
+		a.setStatus("Cannot select that file", true)
+		return a, tea.Batch(cmd, clearStatusAfter(3*time.Second))
+	}
 	return a, cmd
 }
 
