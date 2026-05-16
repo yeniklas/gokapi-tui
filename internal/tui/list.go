@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/yeniklas/gokapi-tui/internal/model"
@@ -12,25 +13,38 @@ var (
 	selectedStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("6"))
-	normalStyle  = lipgloss.NewStyle()
-	headerStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("8"))
-	dimStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	normalStyle = lipgloss.NewStyle()
+	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("8"))
+	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+)
+
+const (
+	sizeW     = 9
+	expiryW   = 12
+	dlW       = 10
+	uploadedW = 11
+	pwW       = 3
+	// 2 (cursor) + sizeW + expiryW + dlW + uploadedW + pwW + 5 spaces between columns
+	fixedW = 2 + sizeW + expiryW + dlW + uploadedW + pwW + 5
 )
 
 func renderList(files []model.GokapiFile, cursor, width int) string {
 	if width < 20 {
 		width = 80
 	}
-	nameW := width / 3
-	sizeW := 10
-	expiryW := 12
+	nameW := width - fixedW
+	if nameW < 8 {
+		nameW = 8
+	}
 
 	header := headerStyle.Render(
-		fmt.Sprintf("%-*s %-*s %-*s %s",
+		fmt.Sprintf("  %-*s %-*s %-*s %-*s %-*s %s",
 			nameW, "NAME",
 			sizeW, "SIZE",
 			expiryW, "EXPIRES",
-			"DOWNLOADS",
+			dlW, "DOWNLOADS",
+			uploadedW, "UPLOADED",
+			"PW",
 		),
 	)
 
@@ -54,11 +68,23 @@ func renderList(files []model.GokapiFile, cursor, width int) string {
 			dl = fmt.Sprintf("%d left", f.DownloadsRemaining)
 		}
 
-		row := fmt.Sprintf("%-*s %-*s %-*s %s",
+		uploaded := ""
+		if f.UploadDate > 0 {
+			uploaded = time.Unix(f.UploadDate, 0).Format("2006-01-02")
+		}
+
+		pw := ""
+		if f.IsPasswordProtected {
+			pw = "yes"
+		}
+
+		row := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s %s",
 			nameW, name,
 			sizeW, size,
 			expiryW, expiry,
-			dl,
+			dlW, dl,
+			uploadedW, uploaded,
+			pw,
 		)
 
 		if i == cursor {

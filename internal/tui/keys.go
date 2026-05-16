@@ -7,7 +7,6 @@ type keyMap struct {
 	Down      key.Binding
 	Top       key.Binding
 	Bottom    key.Binding
-	Detail    key.Binding
 	Upload    key.Binding
 	Yank      key.Binding
 	Delete    key.Binding
@@ -34,10 +33,6 @@ var keys = keyMap{
 	Bottom: key.NewBinding(
 		key.WithKeys("G"),
 		key.WithHelp("G", "bottom"),
-	),
-	Detail: key.NewBinding(
-		key.WithKeys("tab"),
-		key.WithHelp("tab", "detail"),
 	),
 	Upload: key.NewBinding(
 		key.WithKeys("u"),

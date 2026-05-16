@@ -42,12 +42,11 @@ func pressed(msg tea.KeyMsg, b bubblekey.Binding) bool {
 }
 
 type App struct {
-	files      []model.GokapiFile
-	cursor     int
-	state      appState
-	showDetail bool
-	statusMsg  string
-	statusErr  bool
+	files     []model.GokapiFile
+	cursor    int
+	state     appState
+	statusMsg string
+	statusErr bool
 
 	spinner    spinner.Model
 	fp         filepicker.Model
@@ -215,9 +214,6 @@ func (a *App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.cursor = len(a.files) - 1
 		}
 
-	case pressed(msg, keys.Detail):
-		a.showDetail = !a.showDetail
-
 	case pressed(msg, keys.Refresh):
 		return a, a.loadFilesCmd()
 
@@ -353,22 +349,7 @@ func (a *App) View() string {
 
 func (a *App) viewList() string {
 	var b strings.Builder
-
-	listWidth := a.width
-	if a.showDetail && len(a.files) > 0 {
-		listWidth = a.width / 2
-	}
-
-	list := renderList(a.files, a.cursor, listWidth)
-
-	if a.showDetail && len(a.files) > 0 {
-		detailWidth := a.width - listWidth
-		detail := renderDetail(a.files[a.cursor], detailWidth, a.height-3)
-		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, list, detail))
-	} else {
-		b.WriteString(list)
-	}
-
+	b.WriteString(renderList(a.files, a.cursor, a.width))
 	b.WriteString("\n")
 	b.WriteString(a.statusBar())
 	return b.String()
@@ -402,7 +383,7 @@ func (a *App) viewConfirmDel() string {
 }
 
 func (a *App) statusBar() string {
-	help := dimStyle.Render("u:upload  y:copy link  d:delete  tab:detail  r:refresh  q:quit")
+	help := dimStyle.Render("u:upload  y:copy link  d:delete  r:refresh  q:quit")
 	if a.statusMsg != "" {
 		style := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 		if a.statusErr {

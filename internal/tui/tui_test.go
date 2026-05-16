@@ -85,34 +85,6 @@ func TestTruncate_TinyMax(t *testing.T) {
 	}
 }
 
-// ── wrapURL ───────────────────────────────────────────────────────────────────
-
-func TestWrapURL_ShortURL(t *testing.T) {
-	url := "http://example.com/d/abc"
-	if got := wrapURL(url, 80); got != url {
-		t.Errorf("short URL should be returned unchanged, got %q", got)
-	}
-}
-
-func TestWrapURL_ZeroWidth(t *testing.T) {
-	url := "http://example.com/d/abc"
-	if got := wrapURL(url, 0); got != url {
-		t.Errorf("zero width should return unchanged, got %q", got)
-	}
-}
-
-func TestWrapURL_LongURL(t *testing.T) {
-	url := "http://example.com/download/very-long-file-id-here"
-	got := wrapURL(url, 20)
-	lines := strings.Split(got, "\n")
-	if len(lines) < 2 {
-		t.Errorf("expected multiple lines for long URL, got %d", len(lines))
-	}
-	if strings.Join(lines, "") != url {
-		t.Errorf("wrapped lines should reconstruct original URL")
-	}
-}
-
 // ── renderList ────────────────────────────────────────────────────────────────
 
 func TestRenderList_ContainsFileNames(t *testing.T) {
@@ -158,46 +130,36 @@ func TestRenderList_UnlimitedDownloads(t *testing.T) {
 	}
 }
 
-// ── renderDetail ──────────────────────────────────────────────────────────────
-
-func TestRenderDetail_ContainsName(t *testing.T) {
-	f := model.GokapiFile{Id: "x", Name: "myfile.pdf", Size: "5 MB", UrlDownload: "http://srv/d/x"}
-	out := renderDetail(f, 60, 30)
-	if !strings.Contains(out, "myfile.pdf") {
-		t.Errorf("detail should contain file name, got: %q", out)
+func TestRenderList_UploadDate(t *testing.T) {
+	files := []model.GokapiFile{{Id: "x", Name: "f.txt", UploadDate: 1700000000}}
+	out := renderList(files, 0, 120)
+	if !strings.Contains(out, "2023-11-14") {
+		t.Errorf("expected formatted upload date in output, got: %q", out)
 	}
 }
 
-func TestRenderDetail_UnlimitedTime(t *testing.T) {
-	f := model.GokapiFile{UnlimitedTime: true, Name: "f.txt"}
-	out := renderDetail(f, 60, 30)
-	if !strings.Contains(out, "never") {
-		t.Errorf("unlimited time should show 'never', got: %q", out)
+func TestRenderList_NoUploadDate(t *testing.T) {
+	files := []model.GokapiFile{{Id: "x", Name: "f.txt", UploadDate: 0}}
+	out := renderList(files, 0, 120)
+	// should not panic and should still render the row
+	if !strings.Contains(out, "f.txt") {
+		t.Errorf("row missing when UploadDate is zero, got: %q", out)
 	}
 }
 
-func TestRenderDetail_UnlimitedDownloads(t *testing.T) {
-	f := model.GokapiFile{UnlimitedDownloads: true, DownloadCount: 7, Name: "f.txt"}
-	out := renderDetail(f, 60, 30)
-	if !strings.Contains(out, "unlimited") {
-		t.Errorf("unlimited downloads should show 'unlimited', got: %q", out)
-	}
-}
-
-func TestRenderDetail_PasswordProtected(t *testing.T) {
-	f := model.GokapiFile{IsPasswordProtected: true, Name: "f.txt"}
-	out := renderDetail(f, 60, 30)
+func TestRenderList_PasswordProtected(t *testing.T) {
+	files := []model.GokapiFile{{Id: "x", Name: "f.txt", IsPasswordProtected: true}}
+	out := renderList(files, 0, 120)
 	if !strings.Contains(out, "yes") {
-		t.Errorf("password protected should show 'yes', got: %q", out)
+		t.Errorf("password protected file should show 'yes', got: %q", out)
 	}
 }
 
-func TestRenderDetail_ShareURL(t *testing.T) {
-	url := "http://srv/d/abc123"
-	f := model.GokapiFile{UrlDownload: url, Name: "f.txt"}
-	out := renderDetail(f, 60, 30)
-	if !strings.Contains(out, url) {
-		t.Errorf("detail should contain share URL, got: %q", out)
+func TestRenderList_NotPasswordProtected(t *testing.T) {
+	files := []model.GokapiFile{{Id: "x", Name: "f.txt", IsPasswordProtected: false}}
+	out := renderList(files, 0, 120)
+	if strings.Contains(out, "yes") {
+		t.Errorf("non-password-protected file should not show 'yes', got: %q", out)
 	}
 }
 
@@ -398,21 +360,6 @@ func TestHandleListKey_JumpBottom(t *testing.T) {
 	app = updateApp(app, "G")
 	if app.cursor != 2 {
 		t.Errorf("cursor = %d, want 2 after G", app.cursor)
-	}
-}
-
-func TestHandleListKey_ToggleDetail(t *testing.T) {
-	app := testApp(sampleFiles())
-	if app.showDetail {
-		t.Fatal("showDetail should start false")
-	}
-	app = updateApp(app, "tab")
-	if !app.showDetail {
-		t.Error("tab should toggle showDetail to true")
-	}
-	app = updateApp(app, "tab")
-	if app.showDetail {
-		t.Error("second tab should toggle showDetail back to false")
 	}
 }
 
