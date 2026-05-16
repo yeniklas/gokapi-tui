@@ -457,7 +457,8 @@ func (a *App) handleFRListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(a.fileRequests) == 0 {
 			break
 		}
-		url := a.cfg.ServerURL + "/uploadrequest/" + a.fileRequests[a.frCursor].Id
+		fr := a.fileRequests[a.frCursor]
+		url := a.cfg.ServerURL + "/publicUpload?id=" + fr.Id + "&key=" + fr.ApiKey
 		if err := clipboard.WriteAll(url); err != nil {
 			a.setStatus("Clipboard error: "+err.Error(), true)
 			return a, clearStatusAfter(4 * time.Second)

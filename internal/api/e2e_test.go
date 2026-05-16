@@ -175,6 +175,29 @@ func TestE2E_FileRequest_CreateListDelete(t *testing.T) {
 	}
 }
 
+func TestE2E_FileRequest_UploadURL(t *testing.T) {
+	client, serverURL := loadClientAndURL(t)
+	params := model.CreateFileRequestParams{Name: "e2e-url-test"}
+	fr, err := client.CreateFileRequest(context.Background(), params)
+	if err != nil {
+		t.Fatalf("CreateFileRequest: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = client.DeleteFileRequest(context.Background(), fr.Id)
+	})
+
+	if fr.Id == "" {
+		t.Fatal("file request has empty Id")
+	}
+	if fr.ApiKey == "" {
+		t.Fatal("file request has empty ApiKey — upload URL would be broken")
+	}
+
+	wantURL := serverURL + "/publicUpload?id=" + fr.Id + "&key=" + fr.ApiKey
+	_ = wantURL // the TUI builds this; verify the components are non-empty
+	t.Logf("upload URL: %s", wantURL)
+}
+
 func TestE2E_AuthFailure(t *testing.T) {
 	_, serverURL := loadClientAndURL(t)
 	badClient := api.New(serverURL, "invalid-api-key")
