@@ -106,7 +106,11 @@ func deleteCmd(client *api.Client, id string) tea.Cmd {
 		if err := client.DeleteFile(context.Background(), id); err != nil {
 			return errMsg{err}
 		}
-		return filesLoadedMsg{}
+		files, err := client.ListFiles(context.Background())
+		if err != nil {
+			return errMsg{err}
+		}
+		return filesLoadedMsg{files: files}
 	}
 }
 
