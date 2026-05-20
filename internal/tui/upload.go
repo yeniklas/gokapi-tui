@@ -55,6 +55,6 @@ func renderUploadForm(inputs []textinput.Model, activeField int, selectedPath st
 		}
 	}
 
-	b.WriteString("\n" + dimStyle.Render("tab: next field  |  enter: upload  |  esc: cancel"))
+	b.WriteString("\n" + renderHelp("tab: next field  |  enter: upload  |  esc: cancel"))
 	return b.String()
 }

@@ -59,7 +59,7 @@ func renderFRForm(inputs []textinput.Model, activeField int) string {
 		}
 	}
 
-	b.WriteString("\n" + dim.Render("tab: next field  |  enter: create  |  esc: cancel"))
+	b.WriteString("\n" + renderHelp("tab: next field  |  enter: create  |  esc: cancel"))
 	return b.String()
 }
 

@@ -720,7 +720,7 @@ func (a *App) viewFilePicker() string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 	b.WriteString(titleStyle.Render("Select a file to upload") + "\n\n")
 	b.WriteString(a.fp.View())
-	b.WriteString("\n" + dimStyle.Render("esc: cancel"))
+	b.WriteString("\n" + renderHelp("esc: cancel"))
 	return b.String()
 }
 
@@ -777,7 +777,7 @@ func (a *App) viewFRFiles() string {
 	} else {
 		b.WriteString(renderList(a.frFiles, -1, a.width))
 	}
-	b.WriteString("\n" + dimStyle.Render("esc: back"))
+	b.WriteString("\n" + renderHelp("esc: back"))
 	return b.String()
 }
 
@@ -785,11 +785,11 @@ func (a *App) statusBar() string {
 	var help string
 	switch a.activeTab {
 	case tabFileRequests:
-		help = dimStyle.Render("n:new  y:copy link  d:delete  enter:view files  r:refresh  1/2/3:tabs  q:quit")
+		help = renderHelp("n:new  y:copy link  d:delete  enter:view files  r:refresh  1/2/3:tabs  q:quit")
 	case tabStatus:
-		help = dimStyle.Render("j/k:scroll  g/G:top/bottom  r:refresh  1/2/3:tabs  q:quit")
+		help = renderHelp("j/k:scroll  g/G:top/bottom  r:refresh  1/2/3:tabs  q:quit")
 	default:
-		help = dimStyle.Render("u:upload  y:copy link  d:delete  r:refresh  1/2/3:tabs  q:quit")
+		help = renderHelp("u:upload  y:copy link  d:delete  r:refresh  1/2/3:tabs  q:quit")
 	}
 	if a.statusMsg != "" {
 		style := lipgloss.NewStyle().Foreground(lipgloss.Color("2"))

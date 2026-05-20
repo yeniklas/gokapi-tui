@@ -13,10 +13,30 @@ var (
 	selectedStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("6"))
-	normalStyle = lipgloss.NewStyle()
-	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("8"))
-	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	normalStyle   = lipgloss.NewStyle()
+	headerStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("8"))
+	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	helpKeyStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 )
+
+// renderHelp renders shortcut hints with keys accented and descriptions dimmed.
+// Input format: "key:desc  key:desc  ..." with double-space separators.
+func renderHelp(s string) string {
+	parts := strings.Split(s, "  ")
+	out := make([]string, len(parts))
+	for i, p := range parts {
+		if p == "|" {
+			out[i] = dimStyle.Render(p)
+			continue
+		}
+		if idx := strings.Index(p, ":"); idx >= 0 {
+			out[i] = helpKeyStyle.Render(p[:idx]) + dimStyle.Render(p[idx:])
+		} else {
+			out[i] = dimStyle.Render(p)
+		}
+	}
+	return strings.Join(out, "  ")
+}
 
 const (
 	sizeW     = 9
